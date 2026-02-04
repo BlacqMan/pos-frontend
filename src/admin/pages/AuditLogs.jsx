@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import api from "../api/axios";
 
 const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
@@ -13,57 +14,51 @@ const AuditLogs = () => {
   const isAuthenticated = !!token && !!user;
   const isSuperAdmin = user?.role === "super_admin";
 
-  // ===============================
-  // FETCH AUDIT LOGS
-  // ===============================
-  const fetchLogs = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const res = await fetch(
-        "http://localhost:5000/api/admin/audit-logs",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (res.status === 401 || res.status === 403) {
-        setError("You are not authorized to view audit logs.");
-        setLogs([]);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to load audit logs");
-      }
-
-      setLogs(data);
-      setError("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  // ===============================
-  // EFFECT (ALWAYS RUNS)
-  // ===============================
+  /* ===============================
+     FETCH AUDIT LOGS
+  =============================== */
   useEffect(() => {
-    if (isAuthenticated && isSuperAdmin) {
-      fetchLogs();
-    } else {
+    if (!isAuthenticated || !isSuperAdmin) {
       setLoading(false);
+      return;
     }
-  }, [isAuthenticated, isSuperAdmin, fetchLogs]);
 
-  // ===============================
-  // REDIRECTS (AFTER HOOKS)
-  // ===============================
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await api.get("/admin/audit-logs", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setLogs(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        if (
+          err.response?.status === 401 ||
+          err.response?.status === 403
+        ) {
+          setError(
+            "You are not authorized to view audit logs."
+          );
+          setLogs([]);
+        } else {
+          setError(
+            err.response?.data?.message ||
+              "Failed to load audit logs"
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
+  }, [isAuthenticated, isSuperAdmin, token]);
+
+  /* ===============================
+     REDIRECTS
+  =============================== */
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -72,9 +67,9 @@ const AuditLogs = () => {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // ===============================
-  // UI STATES
-  // ===============================
+  /* ===============================
+     UI STATES
+  =============================== */
   if (loading) {
     return (
       <p className="text-gray-400">

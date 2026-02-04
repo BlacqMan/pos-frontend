@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import api from "../api/axios";
 
 const ShiftReports = () => {
   const [shifts, setShifts] = useState([]);
@@ -13,58 +14,51 @@ const ShiftReports = () => {
   const isAuthenticated = !!token && !!user;
   const isSuperAdmin = user?.role === "super_admin";
 
-  // ===============================
-  // FETCH SHIFT REPORTS
-  // ===============================
-  const fetchShiftReports = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const res = await fetch(
-        "http://localhost:5000/api/admin/shift-reports",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (res.status === 401 || res.status === 403) {
-        setError("You are not authorized to view shift reports.");
-        setShifts([]);
-        return;
-      }
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to load shift reports");
-      }
-
-      setShifts(data);
-      setError("");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
-
-  // ===============================
-  // EFFECT (ALWAYS RUNS)
-  // ===============================
+  /* ===============================
+     FETCH SHIFT REPORTS
+  =============================== */
   useEffect(() => {
-    // Only fetch if fully authorized
-    if (isAuthenticated && isSuperAdmin) {
-      fetchShiftReports();
-    } else {
+    if (!isAuthenticated || !isSuperAdmin) {
       setLoading(false);
+      return;
     }
-  }, [isAuthenticated, isSuperAdmin, fetchShiftReports]);
 
-  // ===============================
-  // REDIRECTS (AFTER HOOKS)
-  // ===============================
+    const fetchShiftReports = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const res = await api.get("/admin/shift-reports", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setShifts(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        if (
+          err.response?.status === 401 ||
+          err.response?.status === 403
+        ) {
+          setError(
+            "You are not authorized to view shift reports."
+          );
+          setShifts([]);
+        } else {
+          setError(
+            err.response?.data?.message ||
+              "Failed to load shift reports"
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShiftReports();
+  }, [isAuthenticated, isSuperAdmin, token]);
+
+  /* ===============================
+     REDIRECTS
+  =============================== */
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
@@ -73,9 +67,9 @@ const ShiftReports = () => {
     return <Navigate to="/unauthorized" replace />;
   }
 
-  // ===============================
-  // UI STATES
-  // ===============================
+  /* ===============================
+     UI STATES
+  =============================== */
   if (loading) {
     return (
       <p className="text-gray-400">

@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../api/axios";
 
 const Login = () => {
   const [mode, setMode] = useState("cashier");
 
-  // Admin state
+  // Admin
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  // Cashier state
+  // Cashier
   const [pinCode, setPinCode] = useState("");
 
   const [error, setError] = useState("");
@@ -18,36 +19,32 @@ const Login = () => {
     setError("");
 
     try {
-      const url =
+      const endpoint =
         mode === "admin"
-          ? "http://localhost:5000/api/auth/admin-login"
-          : "http://localhost:5000/api/auth/cashier-login";
+          ? "/auth/admin-login"
+          : "/auth/cashier-login";
 
-      const body =
+      const payload =
         mode === "admin"
           ? { email, password }
           : { pinCode };
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const res = await api.post(endpoint, payload);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Login failed");
+      const { token, user } = res.data;
 
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
 
-      // Redirect based on role
-      if (["admin", "super_admin"].includes(data.user.role)) {
+      if (["admin", "super_admin"].includes(user.role)) {
         navigate("/admin/dashboard");
-        } else {
-          navigate("/pos");
-        }
+      } else {
+        navigate("/pos");
+      }
     } catch (err) {
-      setError(err.message);
+      setError(
+        err.response?.data?.message || "Login failed"
+      );
     }
   };
 
@@ -58,7 +55,9 @@ const Login = () => {
           {mode === "admin" ? "Admin Login" : "Cashier Login"}
         </h2>
 
-        {error && <p className="text-red-500 mb-3">{error}</p>}
+        {error && (
+          <p className="text-red-500 mb-3">{error}</p>
+        )}
 
         {mode === "admin" ? (
           <>
@@ -74,7 +73,9 @@ const Login = () => {
               className="w-full p-2 bg-gray-700 rounded mb-3"
               placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
             />
           </>
         ) : (
@@ -84,7 +85,9 @@ const Login = () => {
             maxLength={4}
             type="password"
             value={pinCode}
-            onChange={(e) => setPinCode(e.target.value)}
+            onChange={(e) =>
+              setPinCode(e.target.value)
+            }
           />
         )}
 
@@ -98,10 +101,13 @@ const Login = () => {
         <p
           className="text-sm mt-4 text-center cursor-pointer text-blue-400"
           onClick={() =>
-            setMode(mode === "admin" ? "cashier" : "admin")
+            setMode(
+              mode === "admin" ? "cashier" : "admin"
+            )
           }
         >
-          Switch to {mode === "admin" ? "Cashier" : "Admin"} Login
+          Switch to{" "}
+          {mode === "admin" ? "Cashier" : "Admin"} Login
         </p>
       </div>
     </div>

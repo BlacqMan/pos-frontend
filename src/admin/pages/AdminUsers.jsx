@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-
-const API_BASE = "http://localhost:5000/api";
+import { useEffect, useState } from "react";
+import api from "../api/axios";
 
 const AdminUsers = () => {
   const token = localStorage.getItem("token");
@@ -28,29 +27,26 @@ const AdminUsers = () => {
   =============================== */
   const [selectedUser, setSelectedUser] = useState(null);
   const [newValue, setNewValue] = useState("");
-  const [actionType, setActionType] = useState(null); // pin | password
+  const [actionType, setActionType] = useState(null); // "pin" | "password"
 
   /* ===============================
-     FETCH USERS
+     FETCH USERS (ON MOUNT)
   =============================== */
-  const fetchUsers = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!res.ok) throw new Error("Unauthorized");
-      const data = await res.json();
-
-      setUsers(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err.message);
-    }
-  }, [token]);
-
   useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await api.get("/users", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        setUsers(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to fetch users");
+      }
+    };
+
     fetchUsers();
-  }, [fetchUsers]);
+  }, [token]);
 
   /* ===============================
      CREATE ADMIN
@@ -61,29 +57,25 @@ const AdminUsers = () => {
     setSuccess("");
 
     try {
-      const res = await fetch(`${API_BASE}/admin/admins`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      await api.post(
+        "/admin/admins",
+        {
           name: adminName,
           email: adminEmail,
           password: adminPassword,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       setSuccess("Admin created successfully");
       setAdminName("");
       setAdminEmail("");
       setAdminPassword("");
-      fetchUsers();
+      refreshUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || "Failed to create admin");
     }
   };
 
@@ -96,27 +88,23 @@ const AdminUsers = () => {
     setSuccess("");
 
     try {
-      const res = await fetch(`${API_BASE}/admin/cashiers`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      await api.post(
+        "/admin/cashiers",
+        {
           name: cashierName,
           pinCode: cashierPin,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       setSuccess(`Cashier created. PIN: ${cashierPin}`);
       setCashierName("");
       setCashierPin("");
-      fetchUsers();
+      refreshUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || "Failed to create cashier");
     }
   };
 
@@ -127,38 +115,30 @@ const AdminUsers = () => {
     try {
       const endpoint =
         actionType === "pin"
-          ? `${API_BASE}/admin/cashiers/${selectedUser._id}/reset-pin`
-          : `${API_BASE}/admin/admins/${selectedUser._id}/reset-password`;
+          ? `/admin/cashiers/${selectedUser._id}/reset-pin`
+          : `/admin/admins/${selectedUser._id}/reset-password`;
 
-      const body =
+      const payload =
         actionType === "pin"
           ? { newPin: newValue }
           : { newPassword: newValue };
 
-      const res = await fetch(endpoint, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
+      const res = await api.put(endpoint, payload, {
+        headers: { Authorization: `Bearer ${token}` },
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
 
       setSuccess(
         actionType === "pin"
-          ? `New PIN: ${data.newPin}`
+          ? `New PIN: ${res.data.newPin}`
           : "Password reset successfully"
       );
 
       setSelectedUser(null);
       setNewValue("");
       setActionType(null);
-      fetchUsers();
+      refreshUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || "Reset failed");
     }
   };
 
@@ -172,20 +152,29 @@ const AdminUsers = () => {
       setError("");
       setSuccess("");
 
-      const res = await fetch(`${API_BASE}/users/${userId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      await api.delete(`/users/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
       setSuccess("User deleted successfully");
-      fetchUsers();
+      refreshUsers();
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.message || "Failed to delete user");
+    }
+  };
+
+  /* ===============================
+     REFRESH USERS (REUSABLE)
+  =============================== */
+  const refreshUsers = async () => {
+    try {
+      const res = await api.get("/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setUsers(Array.isArray(res.data) ? res.data : []);
+    } catch {
+      setError("Failed to refresh users");
     }
   };
 
@@ -199,7 +188,7 @@ const AdminUsers = () => {
       {error && <p className="text-red-400 mb-2">{error}</p>}
       {success && <p className="text-green-400 mb-2">{success}</p>}
 
-      {/* CREATE ADMIN (SUPER ADMIN ONLY) */}
+      {/* CREATE ADMIN */}
       {currentUser.role === "super_admin" && (
         <div className="bg-gray-800 p-4 mb-6 rounded">
           <h2 className="font-semibold mb-2">Create Admin</h2>
@@ -264,7 +253,6 @@ const AdminUsers = () => {
           </span>
 
           <div className="flex gap-2">
-            {/* CASHIER */}
             {u.role === "cashier" && (
               <>
                 <button
@@ -276,7 +264,6 @@ const AdminUsers = () => {
                 >
                   Reset PIN
                 </button>
-
                 <button
                   className="bg-red-600 px-2"
                   onClick={() => deleteUser(u._id)}
@@ -286,7 +273,6 @@ const AdminUsers = () => {
               </>
             )}
 
-            {/* ADMIN (SUPER ADMIN ONLY) */}
             {u.role === "admin" &&
               currentUser.role === "super_admin" && (
                 <>
@@ -299,7 +285,6 @@ const AdminUsers = () => {
                   >
                     Reset Password
                   </button>
-
                   <button
                     className="bg-red-600 px-2"
                     onClick={() => deleteUser(u._id)}
@@ -309,11 +294,8 @@ const AdminUsers = () => {
                 </>
               )}
 
-            {/* SUPER ADMIN */}
             {u.role === "super_admin" && (
-              <span className="text-gray-400 italic">
-                Protected
-              </span>
+              <span className="text-gray-400 italic">Protected</span>
             )}
           </div>
         </div>

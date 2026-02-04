@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import AdminPasswordModal from "../components/AdminPasswordModal";
+import api from "../api/axios";
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
@@ -12,40 +13,37 @@ const Sales = () => {
 
   const token = localStorage.getItem("token");
 
-  // ===============================
-  // FETCH SALES
-  // ===============================
-  const fetchSales = useCallback(async () => {
-    try {
-      setError("");
+  /* ===============================
+     FETCH SALES
+  =============================== */
+  useEffect(() => {
+    const fetchSales = async () => {
+      try {
+        setError("");
 
-      const res = await fetch(
-        "http://localhost:5000/api/admin/sales",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+        const res = await api.get("/admin/sales", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+        setSales(Array.isArray(res.data) ? res.data : []);
+      } catch (err) {
+        setError(
+          err.response?.data?.message ||
+            "Failed to load sales"
+        );
+      }
+    };
 
-      setSales(data);
-    } catch (err) {
-      setError(err.message);
-    }
+    fetchSales();
   }, [token]);
 
-  useEffect(() => {
-    fetchSales();
-  }, [fetchSales]);
-
-  // ===============================
-  // START VOID FLOW
-  // ===============================
+  /* ===============================
+     START VOID FLOW
+  =============================== */
   const startVoidSale = (sale) => {
-    const reason = prompt("Enter reason for voiding this sale");
+    const reason = prompt(
+      "Enter reason for voiding this sale"
+    );
 
     if (!reason) return;
 
@@ -54,29 +52,22 @@ const Sales = () => {
     setShowPasswordModal(true);
   };
 
-  // ===============================
-  // CONFIRM VOID (WITH PASSWORD)
-  // ===============================
+  /* ===============================
+     CONFIRM VOID (WITH PASSWORD)
+  =============================== */
   const confirmVoidSale = async (adminPassword) => {
     try {
-      const res = await fetch(
-        "http://localhost:5000/api/admin/void-sale",
+      await api.post(
+        "/admin/void-sale",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            saleId: selectedSale._id,
-            reason: voidReason,
-            adminPassword,
-          }),
+          saleId: selectedSale._id,
+          reason: voidReason,
+          adminPassword,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
 
       alert("Sale voided successfully");
 
@@ -85,15 +76,22 @@ const Sales = () => {
       setSelectedSale(null);
       setVoidReason("");
 
-      fetchSales();
+      // Refresh sales
+      const res = await api.get("/admin/sales", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSales(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      alert(err.message);
+      alert(
+        err.response?.data?.message ||
+          "Failed to void sale"
+      );
     }
   };
 
-  // ===============================
-  // CANCEL VOID
-  // ===============================
+  /* ===============================
+     CANCEL VOID
+  =============================== */
   const cancelVoidSale = () => {
     setShowPasswordModal(false);
     setSelectedSale(null);
@@ -102,9 +100,15 @@ const Sales = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Sales</h1>
+      <h1 className="text-2xl font-bold mb-4">
+        Sales
+      </h1>
 
-      {error && <p className="text-red-400 mb-3">{error}</p>}
+      {error && (
+        <p className="text-red-400 mb-3">
+          {error}
+        </p>
+      )}
 
       <div className="space-y-3">
         {sales.map((sale) => (
@@ -114,13 +118,17 @@ const Sales = () => {
           >
             <div>
               <p>
-                <b>Cashier:</b> {sale.cashier?.name}
+                <b>Cashier:</b>{" "}
+                {sale.cashier?.name}
               </p>
               <p>
-                <b>Total:</b> ₵ {sale.totalAmount}
+                <b>Total:</b> ₵{" "}
+                {sale.totalAmount}
               </p>
               <p className="text-sm text-gray-400">
-                {new Date(sale.createdAt).toLocaleString()}
+                {new Date(
+                  sale.createdAt
+                ).toLocaleString()}
               </p>
 
               {sale.isVoided && (
@@ -133,7 +141,9 @@ const Sales = () => {
             {!sale.isVoided && (
               <button
                 className="bg-red-600 px-3 py-1 rounded"
-                onClick={() => startVoidSale(sale)}
+                onClick={() =>
+                  startVoidSale(sale)
+                }
               >
                 Void Sale
               </button>
