@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminPasswordModal from "../components/AdminPasswordModal";
-import api from "../api/axios";
+import api from "../../api/axios";
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
