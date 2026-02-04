@@ -55,13 +55,13 @@ const Receipt = ({ data, onClose }) => {
         <div className="flex gap-2 mt-5 print:hidden">
           <button
             onClick={handlePrint}
-            className="flex-1 bg-emerald-600 text-white h-11 rounded-lg font-medium"
+            className="flex-1 h-11 rounded-lg bg-emerald-600 text-white font-medium"
           >
             Print
           </button>
           <button
             onClick={onClose}
-            className="flex-1 bg-slate-600 text-white h-11 rounded-lg font-medium"
+            className="flex-1 h-11 rounded-lg bg-slate-600 text-white font-medium"
           >
             Close
           </button>
@@ -118,6 +118,22 @@ const POS = () => {
     } catch (err) {
       alert(err.response?.data?.message || "Failed to end shift");
     }
+  };
+
+  /* ===============================
+     LOGOUT
+  =============================== */
+  const handleLogout = () => {
+    if (shiftOpen) {
+      const confirmLogout = window.confirm(
+        "You still have an active shift. Are you sure you want to logout?"
+      );
+      if (!confirmLogout) return;
+    }
+
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    window.location.href = "/login";
   };
 
   /* ===============================
@@ -212,21 +228,30 @@ const POS = () => {
           </p>
         </div>
 
-        {!shiftOpen ? (
+        <div className="flex items-center gap-3">
+          {!shiftOpen ? (
+            <button
+              onClick={startShift}
+              className="h-11 px-6 rounded-xl bg-indigo-600 text-white font-semibold"
+            >
+              Start Shift
+            </button>
+          ) : (
+            <button
+              onClick={endShift}
+              className="h-11 px-6 rounded-xl bg-red-600 text-white font-semibold"
+            >
+              End Shift
+            </button>
+          )}
+
           <button
-            onClick={startShift}
-            className="h-11 px-6 rounded-xl bg-indigo-600 text-white font-semibold"
+            onClick={handleLogout}
+            className="h-11 px-5 rounded-xl border border-slate-300 text-slate-600 font-medium hover:bg-slate-100"
           >
-            Start Shift
+            Logout
           </button>
-        ) : (
-          <button
-            onClick={endShift}
-            className="h-11 px-6 rounded-xl bg-red-600 text-white font-semibold"
-          >
-            End Shift
-          </button>
-        )}
+        </div>
       </header>
 
       {/* MAIN */}
