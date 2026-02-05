@@ -30,22 +30,45 @@ const AdminUsers = () => {
   const [actionType, setActionType] = useState(null); // "pin" | "password"
 
   /* ===============================
-     FETCH USERS (ON MOUNT)
+     FETCH USERS (REUSABLE)
+  =============================== */
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get("/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsers(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to fetch users");
+    }
+  };
+
+  /* ===============================
+     FETCH USERS ON MOUNT
   =============================== */
   useEffect(() => {
-    const fetchUsers = async () => {
+    let isMounted = true;
+
+    const loadUsers = async () => {
       try {
         const res = await api.get("/users", {
           headers: { Authorization: `Bearer ${token}` },
         });
-
-        setUsers(Array.isArray(res.data) ? res.data : []);
+        if (isMounted) {
+          setUsers(Array.isArray(res.data) ? res.data : []);
+        }
       } catch (err) {
-        setError(err.response?.data?.message || "Failed to fetch users");
+        if (isMounted) {
+          setError(err.response?.data?.message || "Failed to fetch users");
+        }
       }
     };
 
-    fetchUsers();
+    loadUsers();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   /* ===============================
@@ -64,16 +87,14 @@ const AdminUsers = () => {
           email: adminEmail,
           password: adminPassword,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setSuccess("Admin created successfully");
       setAdminName("");
       setAdminEmail("");
       setAdminPassword("");
-      refreshUsers();
+      fetchUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create admin");
     }
@@ -94,15 +115,13 @@ const AdminUsers = () => {
           name: cashierName,
           pinCode: cashierPin,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
 
       setSuccess(`Cashier created. PIN: ${cashierPin}`);
       setCashierName("");
       setCashierPin("");
-      refreshUsers();
+      fetchUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create cashier");
     }
@@ -136,7 +155,7 @@ const AdminUsers = () => {
       setSelectedUser(null);
       setNewValue("");
       setActionType(null);
-      refreshUsers();
+      fetchUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Reset failed");
     }
@@ -157,29 +176,14 @@ const AdminUsers = () => {
       });
 
       setSuccess("User deleted successfully");
-      refreshUsers();
+      fetchUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete user");
     }
   };
 
   /* ===============================
-     REFRESH USERS (REUSABLE)
-  =============================== */
-  const refreshUsers = async () => {
-    try {
-      const res = await api.get("/users", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      setUsers(Array.isArray(res.data) ? res.data : []);
-    } catch {
-      setError("Failed to refresh users");
-    }
-  };
-
-  /* ===============================
-     RENDER
+     UI
   =============================== */
   return (
     <div>

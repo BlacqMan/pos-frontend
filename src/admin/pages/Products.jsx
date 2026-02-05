@@ -5,6 +5,7 @@ const Products = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const [editingProduct, setEditingProduct] = useState(null);
 
@@ -21,8 +22,12 @@ const Products = () => {
      FETCH PRODUCTS + CATEGORIES
   =============================== */
   useEffect(() => {
-    const fetchData = async () => {
+    let isMounted = true;
+
+    const loadData = async () => {
       try {
+        setError("");
+
         const [productsRes, categoriesRes] = await Promise.all([
           api.get("/products", {
             headers: { Authorization: `Bearer ${token}` },
@@ -32,23 +37,30 @@ const Products = () => {
           }),
         ]);
 
-        setProducts(
-          Array.isArray(productsRes.data)
-            ? productsRes.data
-            : []
-        );
-        setCategories(
-          Array.isArray(categoriesRes.data)
-            ? categoriesRes.data
-            : []
-        );
-      } catch (err) {
-        console.error("Fetch data error:", err);
-        alert("Failed to load products or categories");
+        if (isMounted) {
+          setProducts(
+            Array.isArray(productsRes.data)
+              ? productsRes.data
+              : []
+          );
+          setCategories(
+            Array.isArray(categoriesRes.data)
+              ? categoriesRes.data
+              : []
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setError("Failed to load products or categories");
+        }
       }
     };
 
-    fetchData();
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   /* ===============================
@@ -78,12 +90,8 @@ const Products = () => {
       setProducts((prev) =>
         prev.filter((p) => p._id !== id)
       );
-    } catch (err) {
-      console.error("Delete error:", err);
-      alert(
-        err.response?.data?.message ||
-          "Failed to delete product"
-      );
+    } catch {
+      alert("Failed to delete product");
     }
   };
 
@@ -99,6 +107,7 @@ const Products = () => {
     }
 
     setLoading(true);
+    setError("");
 
     try {
       const payload = {
@@ -135,25 +144,31 @@ const Products = () => {
       const res = await api.get("/products", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setProducts(
         Array.isArray(res.data) ? res.data : []
       );
-    } catch (err) {
-      console.error("Save product error:", err);
-      alert(
-        err.response?.data?.message ||
-          "Failed to save product"
-      );
+    } catch {
+      setError("Failed to save product");
     } finally {
       setLoading(false);
     }
   };
 
+  /* ===============================
+     UI
+  =============================== */
   return (
     <div className="p-6 bg-gray-900 min-h-screen text-white">
       <h1 className="text-3xl font-bold mb-6">
         Admin Products
       </h1>
+
+      {error && (
+        <p className="text-red-400 mb-4">
+          {error}
+        </p>
+      )}
 
       {/* FORM */}
       <form
@@ -231,12 +246,8 @@ const Products = () => {
               className="border-b border-gray-700"
             >
               <td className="p-3">{prod.name}</td>
-              <td className="p-3">
-                ₵ {prod.price}
-              </td>
-              <td className="p-3">
-                {prod.quantity}
-              </td>
+              <td className="p-3">₵ {prod.price}</td>
+              <td className="p-3">{prod.quantity}</td>
               <td className="p-3">
                 {prod.category?.name || "—"}
               </td>
@@ -248,9 +259,7 @@ const Products = () => {
                   Edit
                 </button>
                 <button
-                  onClick={() =>
-                    handleDelete(prod._id)
-                  }
+                  onClick={() => handleDelete(prod._id)}
                   className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
                 >
                   Delete

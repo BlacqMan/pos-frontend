@@ -15,15 +15,17 @@ const AuditLogs = () => {
   const isSuperAdmin = user?.role === "super_admin";
 
   /* ===============================
-     FETCH AUDIT LOGS
+     FETCH AUDIT LOGS (ON MOUNT)
   =============================== */
   useEffect(() => {
-    if (!isAuthenticated || !isSuperAdmin) {
-      setLoading(false);
-      return;
-    }
+    let isMounted = true;
 
-    const fetchLogs = async () => {
+    const loadLogs = async () => {
+      if (!isAuthenticated || !isSuperAdmin) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -32,28 +34,30 @@ const AuditLogs = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        setLogs(Array.isArray(res.data) ? res.data : []);
+        if (isMounted) {
+          setLogs(Array.isArray(res.data) ? res.data : []);
+        }
       } catch (err) {
-        if (
-          err.response?.status === 401 ||
-          err.response?.status === 403
-        ) {
-          setError(
-            "You are not authorized to view audit logs."
-          );
+        if (!isMounted) return;
+
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          setError("You are not authorized to view audit logs.");
           setLogs([]);
         } else {
           setError(
-            err.response?.data?.message ||
-              "Failed to load audit logs"
+            err.response?.data?.message || "Failed to load audit logs"
           );
         }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchLogs();
+    loadLogs();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated, isSuperAdmin, token]);
 
   /* ===============================
@@ -107,18 +111,12 @@ const AuditLogs = () => {
               </p>
 
               <p className="text-gray-400 text-sm">
-                {new Date(
-                  log.createdAt
-                ).toLocaleString()}
+                {new Date(log.createdAt).toLocaleString()}
               </p>
 
               {log.details && (
                 <pre className="text-xs mt-2 bg-gray-900 p-2 rounded">
-                  {JSON.stringify(
-                    log.details,
-                    null,
-                    2
-                  )}
+                  {JSON.stringify(log.details, null, 2)}
                 </pre>
               )}
             </div>

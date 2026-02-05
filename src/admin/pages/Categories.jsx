@@ -6,27 +6,39 @@ const Categories = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const token = localStorage.getItem("token");
 
   /* ===============================
-     FETCH CATEGORIES
+     FETCH CATEGORIES (ON MOUNT)
   =============================== */
   useEffect(() => {
-    const fetchCategories = async () => {
+    let isMounted = true;
+
+    const loadCategories = async () => {
       try {
+        setError("");
+
         const res = await api.get("/categories", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        setCategories(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        console.error("Fetch categories error:", err);
-        alert("Failed to load categories");
+        if (isMounted) {
+          setCategories(Array.isArray(res.data) ? res.data : []);
+        }
+      } catch {
+        if (isMounted) {
+          setError("Failed to load categories");
+        }
       }
     };
 
-    fetchCategories();
+    loadCategories();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   /* ===============================
@@ -41,6 +53,7 @@ const Categories = () => {
     }
 
     setLoading(true);
+    setError("");
 
     try {
       await api.post(
@@ -57,10 +70,10 @@ const Categories = () => {
       const res = await api.get("/categories", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       setCategories(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error("Create category error:", err);
-      alert("Error creating category");
+    } catch {
+      setError("Error creating category");
     } finally {
       setLoading(false);
     }
@@ -80,17 +93,25 @@ const Categories = () => {
       setCategories((prev) =>
         prev.filter((cat) => cat._id !== id)
       );
-    } catch (err) {
-      console.error("Delete category error:", err);
+    } catch {
       alert("Error deleting category");
     }
   };
 
+  /* ===============================
+     UI
+  =============================== */
   return (
     <div className="p-6 text-white">
       <h1 className="text-2xl font-bold mb-6">
         Manage Categories
       </h1>
+
+      {error && (
+        <p className="text-red-400 mb-4">
+          {error}
+        </p>
+      )}
 
       {/* CREATE CATEGORY */}
       <form
@@ -113,7 +134,9 @@ const Categories = () => {
           placeholder="Description (optional)"
           className="w-full mb-3 p-2 rounded bg-gray-700 outline-none"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={(e) =>
+            setDescription(e.target.value)
+          }
         />
 
         <button
@@ -151,13 +174,17 @@ const Categories = () => {
                   key={cat._id}
                   className="border-t border-gray-700 hover:bg-gray-700"
                 >
-                  <td className="p-3">{cat.name}</td>
+                  <td className="p-3">
+                    {cat.name}
+                  </td>
                   <td className="p-3 text-gray-400">
                     {cat.description || "—"}
                   </td>
                   <td className="p-3">
                     <button
-                      onClick={() => handleDelete(cat._id)}
+                      onClick={() =>
+                        handleDelete(cat._id)
+                      }
                       className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
                     >
                       Delete

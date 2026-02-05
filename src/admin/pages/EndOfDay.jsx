@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import api from "../../api/axios";
 
-
 const EndOfDay = () => {
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState("");
@@ -13,50 +12,52 @@ const EndOfDay = () => {
   const userRaw = localStorage.getItem("user");
   const user = userRaw ? JSON.parse(userRaw) : null;
 
-  const isAuthenticated = !!token && !!user;
+  const isAuthenticated = Boolean(token && user);
   const isSuperAdmin = user?.role === "super_admin";
 
   /* ===============================
      FETCH END-OF-DAY SUMMARY
   =============================== */
   useEffect(() => {
-    if (!isAuthenticated || !isSuperAdmin) {
-      setLoading(false);
-      return;
-    }
+    let isMounted = true;
 
-    const fetchSummary = async () => {
+    const loadSummary = async () => {
+      if (!isAuthenticated || !isSuperAdmin) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
 
         const res = await api.get("/admin/end-of-day", {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           params: date ? { date } : {},
         });
 
-        setSummary(res.data);
-      } catch (err) {
-        if (
-          err.response?.status === 401 ||
-          err.response?.status === 403
-        ) {
-          setError(
-            "You are not authorized to view this report."
-          );
-          setSummary(null);
-        } else {
-          setError(
-            err.response?.data?.message ||
-              "Failed to load end-of-day summary"
-          );
+        if (isMounted) {
+          setSummary(res.data);
         }
+      } catch {
+        if (!isMounted) return;
+
+        setSummary(null);
+        setError("Failed to load end-of-day summary");
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchSummary();
+    loadSummary();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated, isSuperAdmin, token, date]);
 
   /* ===============================
@@ -100,9 +101,7 @@ const EndOfDay = () => {
         <input
           type="date"
           value={date}
-          onChange={(e) =>
-            setDate(e.target.value)
-          }
+          onChange={(e) => setDate(e.target.value)}
           className="bg-gray-700 p-2 rounded"
         />
       </div>
@@ -110,20 +109,16 @@ const EndOfDay = () => {
       {summary && (
         <div className="bg-gray-800 p-6 rounded w-96">
           <p>
-            <strong>Date:</strong>{" "}
-            {summary.date}
+            <strong>Date:</strong> {summary.date}
           </p>
           <p>
-            <strong>Total Sales:</strong>{" "}
-            {summary.totalSales}
+            <strong>Total Sales:</strong> {summary.totalSales}
           </p>
           <p>
-            <strong>Voided Sales:</strong>{" "}
-            {summary.totalVoids}
+            <strong>Voided Sales:</strong> {summary.totalVoids}
           </p>
           <p className="text-xl font-bold mt-2">
-            Total Revenue: ₵{" "}
-            {summary.totalRevenue}
+            Total Revenue: ₵ {summary.totalRevenue}
           </p>
         </div>
       )}

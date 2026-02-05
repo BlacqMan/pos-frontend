@@ -18,12 +18,14 @@ const ShiftReports = () => {
      FETCH SHIFT REPORTS
   =============================== */
   useEffect(() => {
-    if (!isAuthenticated || !isSuperAdmin) {
-      setLoading(false);
-      return;
-    }
+    let isMounted = true;
 
-    const fetchShiftReports = async () => {
+    const loadShiftReports = async () => {
+      if (!isAuthenticated || !isSuperAdmin) {
+        if (isMounted) setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError("");
@@ -32,28 +34,24 @@ const ShiftReports = () => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        setShifts(Array.isArray(res.data) ? res.data : []);
-      } catch (err) {
-        if (
-          err.response?.status === 401 ||
-          err.response?.status === 403
-        ) {
-          setError(
-            "You are not authorized to view shift reports."
-          );
-          setShifts([]);
-        } else {
-          setError(
-            err.response?.data?.message ||
-              "Failed to load shift reports"
-          );
+        if (isMounted) {
+          setShifts(Array.isArray(res.data) ? res.data : []);
         }
+      } catch {
+        if (!isMounted) return;
+
+        setShifts([]);
+        setError("Failed to load shift reports");
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    fetchShiftReports();
+    loadShiftReports();
+
+    return () => {
+      isMounted = false;
+    };
   }, [isAuthenticated, isSuperAdmin, token]);
 
   /* ===============================
