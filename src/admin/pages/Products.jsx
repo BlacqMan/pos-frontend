@@ -1,20 +1,28 @@
 import { useEffect, useState } from "react";
 import api from "../../api/axios";
 
+const LOW_STOCK_LIMIT = 10;
+
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
 
+  // form fields
   const [name, setName] = useState("");
+  const [sku, setSku] = useState("");
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [barcode, setBarcode] = useState("");
   const [category, setCategory] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const token = localStorage.getItem("token");
+  const user = JSON.parse(localStorage.getItem("user"));
+  const role = user?.role;
+
+  const canEdit = role === "admin" || role === "super_admin";
+  const canDelete = role === "super_admin";
 
   /* ===============================
      LOAD PRODUCTS + CATEGORIES
@@ -55,13 +63,13 @@ const Products = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (
-      !name.trim() ||
-      !price ||
-      !quantity ||
-      !category
-    ) {
-      alert("All fields except barcode are required");
+    if (!canEdit) {
+      alert("You do not have permission to add products");
+      return;
+    }
+
+    if (!name || !price || !quantity || !category) {
+      alert("All fields except SKU are required");
       return;
     }
 
@@ -73,10 +81,11 @@ const Products = () => {
         "/products",
         {
           name: name.trim(),
+          sku: sku.trim() || undefined,
           price: Number(price),
           quantity: Number(quantity),
-          barcode: barcode.trim(),
-          category, // ✅ ObjectId
+          category,
+          // ❌ barcode intentionally omitted (backend auto-generates)
         },
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -85,11 +94,11 @@ const Products = () => {
 
       setProducts((prev) => [...prev, res.data]);
 
-      // Reset form
+      // reset form
       setName("");
+      setSku("");
       setPrice("");
       setQuantity("");
-      setBarcode("");
       setCategory("");
     } catch (err) {
       setError(
@@ -105,8 +114,12 @@ const Products = () => {
      DELETE PRODUCT
   =============================== */
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this product?"))
+    if (!canDelete) {
+      alert("Only super admins can delete products");
       return;
+    }
+
+    if (!window.confirm("Delete this product?")) return;
 
     try {
       await api.delete(`/products/${id}`, {
@@ -135,64 +148,64 @@ const Products = () => {
       )}
 
       {/* ADD PRODUCT FORM */}
-      <form
-        onSubmit={handleSubmit}
-        className="bg-gray-800 p-4 rounded-lg mb-8 grid grid-cols-2 gap-4"
-      >
-        <input
-          className="bg-gray-700 p-2 rounded"
-          placeholder="Product name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <input
-          type="number"
-          step="0.01"
-          className="bg-gray-700 p-2 rounded"
-          placeholder="Price"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-        />
-
-        <input
-          type="number"
-          className="bg-gray-700 p-2 rounded"
-          placeholder="Quantity"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-        />
-
-        <input
-          className="bg-gray-700 p-2 rounded"
-          placeholder="Barcode"
-          value={barcode}
-          onChange={(e) => setBarcode(e.target.value)}
-        />
-
-        <select
-          className="bg-gray-700 p-2 rounded col-span-2"
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
+      {canEdit && (
+        <form
+          onSubmit={handleSubmit}
+          className="bg-gray-800 p-4 rounded-lg mb-8 grid grid-cols-2 gap-4"
         >
-          <option value="">
-            Select Category
-          </option>
-          {categories.map((cat) => (
-            <option key={cat._id} value={cat._id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
+          <input
+            className="bg-gray-700 p-2 rounded"
+            placeholder="Product name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="col-span-2 bg-blue-600 p-2 rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? "Saving..." : "Add Product"}
-        </button>
-      </form>
+          <input
+            className="bg-gray-700 p-2 rounded"
+            placeholder="SKU (optional)"
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+          />
+
+          <input
+            type="number"
+            step="0.01"
+            className="bg-gray-700 p-2 rounded"
+            placeholder="Price"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+          />
+
+          <input
+            type="number"
+            className="bg-gray-700 p-2 rounded"
+            placeholder="Quantity"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+
+          <select
+            className="bg-gray-700 p-2 rounded col-span-2"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">Select Category</option>
+            {categories.map((cat) => (
+              <option key={cat._id} value={cat._id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="col-span-2 bg-blue-600 p-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Add Product"}
+          </button>
+        </form>
+      )}
 
       {/* PRODUCTS TABLE */}
       <div className="bg-gray-800 rounded-lg overflow-hidden">
@@ -200,6 +213,8 @@ const Products = () => {
           <thead className="bg-gray-700">
             <tr>
               <th className="p-3">Name</th>
+              <th className="p-3">SKU</th>
+              <th className="p-3">Barcode</th>
               <th className="p-3">Price</th>
               <th className="p-3">Qty</th>
               <th className="p-3">Category</th>
@@ -210,7 +225,7 @@ const Products = () => {
             {products.length === 0 ? (
               <tr>
                 <td
-                  colSpan="5"
+                  colSpan="7"
                   className="p-4 text-center text-gray-400"
                 >
                   No products found
@@ -220,23 +235,42 @@ const Products = () => {
               products.map((p) => (
                 <tr
                   key={p._id}
-                  className="border-t border-gray-700"
+                  className={`border-t border-gray-700 ${
+                    p.quantity <= LOW_STOCK_LIMIT
+                      ? "bg-red-900/30"
+                      : ""
+                  }`}
                 >
-                  <td className="p-3">{p.name}</td>
+                  <td className="p-3 font-medium">
+                    {p.name}
+                    {p.quantity <= LOW_STOCK_LIMIT && (
+                      <span className="ml-2 text-xs bg-red-600 px-2 py-1 rounded">
+                        LOW
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3 text-sm">
+                    {p.sku || "—"}
+                  </td>
+                  <td className="p-3 text-xs text-gray-400">
+                    {p.barcode}
+                  </td>
                   <td className="p-3">₵ {p.price}</td>
                   <td className="p-3">{p.quantity}</td>
                   <td className="p-3">
                     {p.category?.name || "—"}
                   </td>
                   <td className="p-3">
-                    <button
-                      onClick={() =>
-                        handleDelete(p._id)
-                      }
-                      className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
+                    {canDelete && (
+                      <button
+                        onClick={() =>
+                          handleDelete(p._id)
+                        }
+                        className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))
