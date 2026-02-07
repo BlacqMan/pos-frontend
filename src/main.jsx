@@ -24,7 +24,7 @@ import EndOfDay from "./admin/pages/EndOfDay";
 import AuditLogs from "./admin/pages/AuditLogs";
 import StockAudit from "./admin/pages/StockAudit";
 import PrintBarcodes from "./admin/pages/PrintBarcodes";
-import SalesSummary from "../pages/admin/SalesSummary";
+import SalesSummary from "./admin/pages/SalesSummary";
 
 import "./index.css";
 
