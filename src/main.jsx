@@ -23,6 +23,8 @@ import ShiftReports from "./admin/pages/ShiftReports";
 import EndOfDay from "./admin/pages/EndOfDay";
 import AuditLogs from "./admin/pages/AuditLogs";
 import StockAudit from "./admin/pages/StockAudit";
+import PrintBarcodes from "./admin/pages/PrintBarcodes";
+import SalesSummary from "../pages/admin/SalesSummary";
 
 import "./index.css";
 
@@ -70,6 +72,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="categories" element={<Categories />} />
           <Route path="products" element={<Products />} />
           <Route path="sales" element={<Sales />} />
+          <Route path="printbarcode" element={<PrintBarcodes />} />
+          <Route path="sales-summary" element={<SalesSummary />} />
+          
+          
 
           {/* SUPER ADMIN ONLY
               (PATHS MATCH SIDEBAR EXACTLY) */}

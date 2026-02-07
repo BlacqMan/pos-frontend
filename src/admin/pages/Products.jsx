@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import Papa from "papaparse";
+import StockAuditModal from "../../components/StockAuditModal";
 
 const LOW_STOCK_LIMIT = 10;
 
 const Products = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [auditProduct, setAuditProduct] = useState(null);
 
   // form fields
   const [name, setName] = useState("");
@@ -22,6 +26,8 @@ const Products = () => {
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user"));
   const role = user?.role;
+
+  const navigate = useNavigate();
 
   const canEdit = role === "admin" || role === "super_admin";
   const canDelete = role === "super_admin";
@@ -50,6 +56,28 @@ const Products = () => {
   useEffect(() => {
     loadData();
   }, [token]);
+
+  /* ===============================
+     SELECTION (BARCODE PRINTING)
+  =============================== */
+  const toggleSelect = (product) => {
+    setSelectedProducts((prev) =>
+      prev.find((p) => p._id === product._id)
+        ? prev.filter((p) => p._id !== product._id)
+        : [...prev, product]
+    );
+  };
+
+  const handlePrintBarcodes = () => {
+    if (selectedProducts.length === 0) {
+      alert("Select at least one product to print barcodes");
+      return;
+    }
+
+    navigate("/admin/print-barcodes", {
+      state: { products: selectedProducts },
+    });
+  };
 
   /* ===============================
      START EDIT
@@ -134,7 +162,7 @@ const Products = () => {
   };
 
   /* ===============================
-     BULK CSV IMPORT (categoryName)
+     BULK CSV IMPORT
   =============================== */
   const handleImport = (e) => {
     const file = e.target.files[0];
@@ -157,16 +185,10 @@ const Products = () => {
 
             const matchedCategory = categories.find(
               (c) =>
-                c.name.toLowerCase() ===
-                row.categoryName.toLowerCase()
+                c.name.toLowerCase() === row.categoryName.toLowerCase()
             );
 
-            if (!matchedCategory) {
-              console.warn(
-                `Skipping product "${row.name}" — category not found`
-              );
-              continue;
-            }
+            if (!matchedCategory) continue;
 
             await api.post(
               "/products",
@@ -199,7 +221,18 @@ const Products = () => {
   =============================== */
   return (
     <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">Admin Products</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Admin Products</h1>
+
+        {canEdit && (
+          <button
+            onClick={handlePrintBarcodes}
+            className="bg-black px-4 py-2 rounded hover:bg-gray-900"
+          >
+            Print Barcodes
+          </button>
+        )}
+      </div>
 
       {error && <p className="text-red-400 mb-4">{error}</p>}
 
@@ -215,9 +248,6 @@ const Products = () => {
             onChange={handleImport}
             className="text-sm"
           />
-          <p className="text-xs text-gray-400 mt-1">
-            CSV columns: name, sku, price, quantity, categoryName
-          </p>
         </div>
       )}
 
@@ -274,7 +304,7 @@ const Products = () => {
           <button
             type="submit"
             disabled={loading}
-            className="col-span-2 bg-blue-600 p-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="col-span-2 bg-blue-600 p-2 rounded hover:bg-blue-700"
           >
             {loading
               ? "Saving..."
@@ -282,16 +312,6 @@ const Products = () => {
               ? "Update Product"
               : "Add Product"}
           </button>
-
-          {editingProduct && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="col-span-2 bg-gray-600 p-2 rounded hover:bg-gray-700"
-            >
-              Cancel Edit
-            </button>
-          )}
         </form>
       )}
 
@@ -300,6 +320,7 @@ const Products = () => {
         <table className="w-full text-left">
           <thead className="bg-gray-700">
             <tr>
+              <th className="p-3"></th>
               <th className="p-3">Name</th>
               <th className="p-3">SKU</th>
               <th className="p-3">Barcode</th>
@@ -310,57 +331,64 @@ const Products = () => {
             </tr>
           </thead>
           <tbody>
-            {products.length === 0 ? (
-              <tr>
-                <td colSpan="7" className="p-4 text-center text-gray-400">
-                  No products found
+            {products.map((p) => (
+              <tr
+                key={p._id}
+                className={`border-t border-gray-700 ${
+                  p.quantity <= LOW_STOCK_LIMIT ? "bg-red-900/30" : ""
+                }`}
+              >
+                <td className="p-3">
+                  <input
+                    type="checkbox"
+                    checked={!!selectedProducts.find((s) => s._id === p._id)}
+                    onChange={() => toggleSelect(p)}
+                  />
+                </td>
+                <td className="p-3 font-medium">{p.name}</td>
+                <td className="p-3">{p.sku || "—"}</td>
+                <td className="p-3 text-xs text-gray-400">{p.barcode}</td>
+                <td className="p-3">₵ {p.price}</td>
+                <td className="p-3">{p.quantity}</td>
+                <td className="p-3">{p.category?.name || "—"}</td>
+                <td className="p-3 flex gap-2">
+                  {canEdit && (
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="bg-yellow-600 px-3 py-1 rounded"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => setAuditProduct(p)}
+                      className="bg-gray-600 px-3 py-1 rounded hover:bg-gray-700"
+                    >
+                      History
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      onClick={() => handleDelete(p._id)}
+                      className="bg-red-600 px-3 py-1 rounded"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </td>
               </tr>
-            ) : (
-              products.map((p) => (
-                <tr
-                  key={p._id}
-                  className={`border-t border-gray-700 ${
-                    p.quantity <= LOW_STOCK_LIMIT ? "bg-red-900/30" : ""
-                  }`}
-                >
-                  <td className="p-3 font-medium">
-                    {p.name}
-                    {p.quantity <= LOW_STOCK_LIMIT && (
-                      <span className="ml-2 text-xs bg-red-600 px-2 py-1 rounded">
-                        LOW
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3">{p.sku || "—"}</td>
-                  <td className="p-3 text-xs text-gray-400">{p.barcode}</td>
-                  <td className="p-3">₵ {p.price}</td>
-                  <td className="p-3">{p.quantity}</td>
-                  <td className="p-3">{p.category?.name || "—"}</td>
-                  <td className="p-3 flex gap-2">
-                    {canEdit && (
-                      <button
-                        onClick={() => startEdit(p)}
-                        className="bg-yellow-600 px-3 py-1 rounded hover:bg-yellow-700"
-                      >
-                        Edit
-                      </button>
-                    )}
-                    {canDelete && (
-                      <button
-                        onClick={() => handleDelete(p._id)}
-                        className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
+            ))}
           </tbody>
         </table>
       </div>
+
+      {auditProduct && (
+        <StockAuditModal
+          product={auditProduct}
+          onClose={() => setAuditProduct(null)}
+        />
+      )}
     </div>
   );
 };
