@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "../../api/axios";
+import Papa from "papaparse";
 
 const LOW_STOCK_LIMIT = 10;
 
@@ -14,6 +15,7 @@ const Products = () => {
   const [quantity, setQuantity] = useState("");
   const [category, setCategory] = useState("");
 
+  const [editingProduct, setEditingProduct] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,84 +29,87 @@ const Products = () => {
   /* ===============================
      LOAD PRODUCTS + CATEGORIES
   =============================== */
+  const loadData = async () => {
+    try {
+      const [productsRes, categoriesRes] = await Promise.all([
+        api.get("/products", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        api.get("/categories", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      setProducts(Array.isArray(productsRes.data) ? productsRes.data : []);
+      setCategories(Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
+    } catch {
+      setError("Failed to load products or categories");
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [productsRes, categoriesRes] = await Promise.all([
-          api.get("/products", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-          api.get("/categories", {
-            headers: { Authorization: `Bearer ${token}` },
-          }),
-        ]);
-
-        setProducts(
-          Array.isArray(productsRes.data)
-            ? productsRes.data
-            : []
-        );
-        setCategories(
-          Array.isArray(categoriesRes.data)
-            ? categoriesRes.data
-            : []
-        );
-      } catch {
-        setError("Failed to load products or categories");
-      }
-    };
-
     loadData();
   }, [token]);
 
   /* ===============================
-     CREATE PRODUCT
+     START EDIT
+  =============================== */
+  const startEdit = (product) => {
+    setEditingProduct(product);
+    setName(product.name);
+    setSku(product.sku || "");
+    setPrice(product.price);
+    setQuantity(product.quantity);
+    setCategory(product.category?._id || "");
+  };
+
+  const resetForm = () => {
+    setEditingProduct(null);
+    setName("");
+    setSku("");
+    setPrice("");
+    setQuantity("");
+    setCategory("");
+  };
+
+  /* ===============================
+     CREATE / UPDATE PRODUCT
   =============================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!canEdit) {
-      alert("You do not have permission to add products");
-      return;
-    }
+    if (!canEdit) return alert("Permission denied");
 
     if (!name || !price || !quantity || !category) {
-      alert("All fields except SKU are required");
-      return;
+      return alert("All fields except SKU are required");
     }
 
     setLoading(true);
     setError("");
 
     try {
-      const res = await api.post(
-        "/products",
-        {
-          name: name.trim(),
-          sku: sku.trim() || undefined,
-          price: Number(price),
-          quantity: Number(quantity),
-          category,
-          // ❌ barcode intentionally omitted (backend auto-generates)
-        },
-        {
+      const payload = {
+        name: name.trim(),
+        sku: sku.trim() || undefined,
+        price: Number(price),
+        quantity: Number(quantity),
+        category,
+      };
+
+      if (editingProduct) {
+        await api.put(`/products/${editingProduct._id}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+        });
+      } else {
+        await api.post("/products", payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
 
-      setProducts((prev) => [...prev, res.data]);
-
-      // reset form
-      setName("");
-      setSku("");
-      setPrice("");
-      setQuantity("");
-      setCategory("");
+      resetForm();
+      loadData();
     } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to save product"
-      );
+      setError(err.response?.data?.message || "Failed to save product");
     } finally {
       setLoading(false);
     }
@@ -114,10 +119,7 @@ const Products = () => {
      DELETE PRODUCT
   =============================== */
   const handleDelete = async (id) => {
-    if (!canDelete) {
-      alert("Only super admins can delete products");
-      return;
-    }
+    if (!canDelete) return alert("Only super admins can delete products");
 
     if (!window.confirm("Delete this product?")) return;
 
@@ -125,13 +127,71 @@ const Products = () => {
       await api.delete(`/products/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      setProducts((prev) =>
-        prev.filter((p) => p._id !== id)
-      );
+      setProducts((prev) => prev.filter((p) => p._id !== id));
     } catch {
       alert("Failed to delete product");
     }
+  };
+
+  /* ===============================
+     BULK CSV IMPORT (categoryName)
+  =============================== */
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          for (const row of results.data) {
+            if (
+              !row.name ||
+              !row.price ||
+              !row.quantity ||
+              !row.categoryName
+            ) {
+              continue;
+            }
+
+            const matchedCategory = categories.find(
+              (c) =>
+                c.name.toLowerCase() ===
+                row.categoryName.toLowerCase()
+            );
+
+            if (!matchedCategory) {
+              console.warn(
+                `Skipping product "${row.name}" — category not found`
+              );
+              continue;
+            }
+
+            await api.post(
+              "/products",
+              {
+                name: row.name.trim(),
+                sku: row.sku?.trim() || undefined,
+                price: Number(row.price),
+                quantity: Number(row.quantity),
+                category: matchedCategory._id,
+              },
+              {
+                headers: { Authorization: `Bearer ${token}` },
+              }
+            );
+          }
+
+          alert("✅ Bulk import completed");
+          loadData();
+        } catch {
+          alert("❌ Bulk import failed");
+        } finally {
+          e.target.value = "";
+        }
+      },
+    });
   };
 
   /* ===============================
@@ -139,15 +199,29 @@ const Products = () => {
   =============================== */
   return (
     <div className="p-6 text-white">
-      <h1 className="text-2xl font-bold mb-6">
-        Admin Products
-      </h1>
+      <h1 className="text-2xl font-bold mb-6">Admin Products</h1>
 
-      {error && (
-        <p className="text-red-400 mb-4">{error}</p>
+      {error && <p className="text-red-400 mb-4">{error}</p>}
+
+      {/* CSV IMPORT */}
+      {canEdit && (
+        <div className="mb-6">
+          <label className="block text-sm mb-1 text-gray-300">
+            Bulk Import (CSV)
+          </label>
+          <input
+            type="file"
+            accept=".csv"
+            onChange={handleImport}
+            className="text-sm"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            CSV columns: name, sku, price, quantity, categoryName
+          </p>
+        </div>
       )}
 
-      {/* ADD PRODUCT FORM */}
+      {/* ADD / EDIT FORM */}
       {canEdit && (
         <form
           onSubmit={handleSubmit}
@@ -202,8 +276,22 @@ const Products = () => {
             disabled={loading}
             className="col-span-2 bg-blue-600 p-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? "Saving..." : "Add Product"}
+            {loading
+              ? "Saving..."
+              : editingProduct
+              ? "Update Product"
+              : "Add Product"}
           </button>
+
+          {editingProduct && (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="col-span-2 bg-gray-600 p-2 rounded hover:bg-gray-700"
+            >
+              Cancel Edit
+            </button>
+          )}
         </form>
       )}
 
@@ -218,16 +306,13 @@ const Products = () => {
               <th className="p-3">Price</th>
               <th className="p-3">Qty</th>
               <th className="p-3">Category</th>
-              <th className="p-3 w-24">Actions</th>
+              <th className="p-3 w-32">Actions</th>
             </tr>
           </thead>
           <tbody>
             {products.length === 0 ? (
               <tr>
-                <td
-                  colSpan="7"
-                  className="p-4 text-center text-gray-400"
-                >
+                <td colSpan="7" className="p-4 text-center text-gray-400">
                   No products found
                 </td>
               </tr>
@@ -236,9 +321,7 @@ const Products = () => {
                 <tr
                   key={p._id}
                   className={`border-t border-gray-700 ${
-                    p.quantity <= LOW_STOCK_LIMIT
-                      ? "bg-red-900/30"
-                      : ""
+                    p.quantity <= LOW_STOCK_LIMIT ? "bg-red-900/30" : ""
                   }`}
                 >
                   <td className="p-3 font-medium">
@@ -249,23 +332,23 @@ const Products = () => {
                       </span>
                     )}
                   </td>
-                  <td className="p-3 text-sm">
-                    {p.sku || "—"}
-                  </td>
-                  <td className="p-3 text-xs text-gray-400">
-                    {p.barcode}
-                  </td>
+                  <td className="p-3">{p.sku || "—"}</td>
+                  <td className="p-3 text-xs text-gray-400">{p.barcode}</td>
                   <td className="p-3">₵ {p.price}</td>
                   <td className="p-3">{p.quantity}</td>
-                  <td className="p-3">
-                    {p.category?.name || "—"}
-                  </td>
-                  <td className="p-3">
+                  <td className="p-3">{p.category?.name || "—"}</td>
+                  <td className="p-3 flex gap-2">
+                    {canEdit && (
+                      <button
+                        onClick={() => startEdit(p)}
+                        className="bg-yellow-600 px-3 py-1 rounded hover:bg-yellow-700"
+                      >
+                        Edit
+                      </button>
+                    )}
                     {canDelete && (
                       <button
-                        onClick={() =>
-                          handleDelete(p._id)
-                        }
+                        onClick={() => handleDelete(p._id)}
                         className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
                       >
                         Delete

@@ -137,7 +137,7 @@ const POS = () => {
   /* ===============================
      CART LOGIC
   =============================== */
-  const handleAddToCart = (product) => {
+  const addToCart = (product) => {
     setCart((prev) => {
       const existing = prev.find((i) => i._id === product._id);
       if (existing) {
@@ -256,9 +256,6 @@ const POS = () => {
       <main className="p-5 grid grid-cols-12 gap-5">
         {/* CATEGORIES */}
         <aside className="col-span-12 md:col-span-3 bg-white rounded-2xl p-4 shadow-sm">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
-            Categories
-          </h2>
           <Categories
             selectedCategory={selectedCategory}
             onSelectCategory={setSelectedCategory}
@@ -267,14 +264,10 @@ const POS = () => {
 
         {/* PRODUCTS */}
         <section className="col-span-12 md:col-span-6 bg-white rounded-2xl p-4 shadow-sm">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">
-            Products
-          </h2>
-
           {selectedCategory ? (
             <ProductGrid
               categoryId={selectedCategory}
-              onAddToCart={handleAddToCart}
+              onAddToCart={addToCart}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm">
@@ -320,7 +313,7 @@ const POS = () => {
                     </span>
 
                     <button
-                      onClick={() => handleAddToCart(item)}
+                      onClick={() => addToCart(item)}
                       className="h-8 w-8 rounded-md bg-slate-200 hover:bg-slate-300"
                     >
                       +

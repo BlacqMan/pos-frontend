@@ -22,6 +22,7 @@ import AdminUsers from "./admin/pages/AdminUsers";
 import ShiftReports from "./admin/pages/ShiftReports";
 import EndOfDay from "./admin/pages/EndOfDay";
 import AuditLogs from "./admin/pages/AuditLogs";
+import StockAudit from "./admin/pages/StockAudit";
 
 import "./index.css";
 
@@ -75,6 +76,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           <Route path="shift-reports" element={<ShiftReports />} />
           <Route path="end-of-day" element={<EndOfDay />} />
           <Route path="audit-logs" element={<AuditLogs />} />
+          <Route path="stock-audit" element={<StockAudit />} />
         </Route>
 
         {/* ===============================
