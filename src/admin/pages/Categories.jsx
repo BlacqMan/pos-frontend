@@ -8,10 +8,15 @@ const Categories = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // EDIT STATE
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
   const token = localStorage.getItem("token");
 
   /* ===============================
-     FETCH CATEGORIES (ON MOUNT)
+     FETCH CATEGORIES
   =============================== */
   useEffect(() => {
     let isMounted = true;
@@ -80,6 +85,54 @@ const Categories = () => {
   };
 
   /* ===============================
+     START EDIT
+  =============================== */
+  const startEdit = (cat) => {
+    setEditingId(cat._id);
+    setEditName(cat.name);
+    setEditDescription(cat.description || "");
+  };
+
+  /* ===============================
+     CANCEL EDIT
+  =============================== */
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditName("");
+    setEditDescription("");
+  };
+
+  /* ===============================
+     SAVE EDIT
+  =============================== */
+  const saveEdit = async (id) => {
+    if (!editName.trim()) {
+      alert("Category name is required");
+      return;
+    }
+
+    try {
+      await api.put(
+        `/categories/${id}`,
+        { name: editName, description: editDescription },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setCategories((prev) =>
+        prev.map((cat) =>
+          cat._id === id
+            ? { ...cat, name: editName, description: editDescription }
+            : cat
+        )
+      );
+
+      cancelEdit();
+    } catch {
+      alert("Error updating category");
+    }
+  };
+
+  /* ===============================
      DELETE CATEGORY
   =============================== */
   const handleDelete = async (id) => {
@@ -108,9 +161,7 @@ const Categories = () => {
       </h1>
 
       {error && (
-        <p className="text-red-400 mb-4">
-          {error}
-        </p>
+        <p className="text-red-400 mb-4">{error}</p>
       )}
 
       {/* CREATE CATEGORY */}
@@ -134,9 +185,7 @@ const Categories = () => {
           placeholder="Description (optional)"
           className="w-full mb-3 p-2 rounded bg-gray-700 outline-none"
           value={description}
-          onChange={(e) =>
-            setDescription(e.target.value)
-          }
+          onChange={(e) => setDescription(e.target.value)}
         />
 
         <button
@@ -149,13 +198,13 @@ const Categories = () => {
       </form>
 
       {/* CATEGORIES LIST */}
-      <div className="bg-gray-800 rounded-lg">
+      <div className="bg-gray-800 rounded-lg overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-gray-700">
             <tr>
               <th className="p-3">Name</th>
               <th className="p-3">Description</th>
-              <th className="p-3 w-24">Actions</th>
+              <th className="p-3 w-40">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -172,23 +221,70 @@ const Categories = () => {
               categories.map((cat) => (
                 <tr
                   key={cat._id}
-                  className="border-t border-gray-700 hover:bg-gray-700"
+                  className="border-t border-gray-700"
                 >
                   <td className="p-3">
-                    {cat.name}
+                    {editingId === cat._id ? (
+                      <input
+                        className="bg-gray-700 p-2 rounded w-full"
+                        value={editName}
+                        onChange={(e) =>
+                          setEditName(e.target.value)
+                        }
+                      />
+                    ) : (
+                      cat.name
+                    )}
                   </td>
+
                   <td className="p-3 text-gray-400">
-                    {cat.description || "—"}
+                    {editingId === cat._id ? (
+                      <input
+                        className="bg-gray-700 p-2 rounded w-full"
+                        value={editDescription}
+                        onChange={(e) =>
+                          setEditDescription(e.target.value)
+                        }
+                      />
+                    ) : (
+                      cat.description || "—"
+                    )}
                   </td>
-                  <td className="p-3">
-                    <button
-                      onClick={() =>
-                        handleDelete(cat._id)
-                      }
-                      className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
-                    >
-                      Delete
-                    </button>
+
+                  <td className="p-3 flex gap-2">
+                    {editingId === cat._id ? (
+                      <>
+                        <button
+                          onClick={() => saveEdit(cat._id)}
+                          className="bg-green-600 px-3 py-1 rounded hover:bg-green-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          className="bg-gray-600 px-3 py-1 rounded hover:bg-gray-700"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => startEdit(cat)}
+                          className="bg-yellow-500 px-3 py-1 rounded hover:bg-yellow-600"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleDelete(cat._id)
+                          }
+                          className="bg-red-600 px-3 py-1 rounded hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))
