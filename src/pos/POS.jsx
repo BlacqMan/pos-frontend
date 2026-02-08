@@ -36,18 +36,11 @@ const Receipt = ({ data, onClose }) => {
           <span>₵ {data.total}</span>
         </div>
 
-        {data.change > 0 && (
-          <div className="flex justify-between text-sm mt-2">
-            <span>Change</span>
-            <span>₵ {data.change}</span>
-          </div>
-        )}
-
         <div className="flex gap-2 mt-5 print:hidden">
-          <button onClick={handlePrint} className="flex-1 h-11 rounded-lg bg-emerald-600 text-white">
+          <button onClick={handlePrint} className="flex-1 bg-emerald-600 text-white p-2 rounded">
             Print
           </button>
-          <button onClick={onClose} className="flex-1 h-11 rounded-lg bg-slate-600 text-white">
+          <button onClick={onClose} className="flex-1 bg-slate-600 text-white p-2 rounded">
             Close
           </button>
         </div>
@@ -59,52 +52,32 @@ const Receipt = ({ data, onClose }) => {
 /* ===============================
    PAYMENT MODAL
 =============================== */
-const PaymentModal = ({ total, onConfirm, onCancel }) => {
+const PaymentModal = ({ onConfirm, onCancel }) => {
   const [method, setMethod] = useState("cash");
-  const [received, setReceived] = useState("");
-
-  const change =
-    method === "cash"
-      ? Math.max(0, Number(received || 0) - total)
-      : 0;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl w-96">
-        <h2 className="text-lg font-bold mb-4">Payment</h2>
-
-        <p className="mb-3 font-semibold">Total: ₵ {total}</p>
+        <h2 className="text-lg font-bold mb-4">Select Payment Method</h2>
 
         <select
-          className="w-full border p-2 rounded mb-3"
           value={method}
           onChange={(e) => setMethod(e.target.value)}
+          className="w-full border p-2 rounded mb-4"
         >
           <option value="cash">Cash</option>
           <option value="momo">Mobile Money</option>
           <option value="card">Card</option>
         </select>
 
-        {method === "cash" && (
-          <>
-            <input
-              type="number"
-              placeholder="Amount received"
-              className="w-full border p-2 rounded mb-2"
-              value={received}
-              onChange={(e) => setReceived(e.target.value)}
-            />
-            <p className="text-sm mb-3">Change: ₵ {change}</p>
-          </>
-        )}
-
         <div className="flex gap-2">
           <button
-            onClick={() => onConfirm({ paymentMethod: method, change })}
+            onClick={() => onConfirm(method)}
             className="flex-1 bg-green-600 text-white p-2 rounded"
           >
             Confirm
           </button>
+
           <button
             onClick={onCancel}
             className="flex-1 bg-gray-500 text-white p-2 rounded"
@@ -130,11 +103,12 @@ const POS = () => {
   const [shiftOpen, setShiftOpen] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [showReceipt, setShowReceipt] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
   const [lastScan, setLastScan] = useState(null);
+  const [showPayment, setShowPayment] = useState(false);
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
+  /* SHIFT CONTROLS */
   const startShift = async () => {
     await api.post("/shifts/start", {}, { headers: { Authorization: `Bearer ${token}` } });
     setShiftOpen(true);
@@ -145,18 +119,22 @@ const POS = () => {
     setShiftOpen(false);
   };
 
+  const handleLogout = () => {
+    localStorage.clear();
+    window.location.href = "/login";
+  };
+
+  /* CART LOGIC */
   const handleAddToCart = (product) => {
     setCart((prev) => {
       const existing = prev.find((i) => i._id === product._id);
-
       if (existing) {
-        setLastScan({ productId: product._id, wasNewItem: false });
+        setLastScan({ productId: product._id });
         return prev.map((i) =>
           i._id === product._id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-
-      setLastScan({ productId: product._id, wasNewItem: true });
+      setLastScan({ productId: product._id });
       return [...prev, { ...product, quantity: 1 }];
     });
   };
@@ -166,18 +144,21 @@ const POS = () => {
     setCart((prev) =>
       prev
         .map((i) =>
-          i._id === lastScan.productId
-            ? { ...i, quantity: i.quantity - 1 }
-            : i
+          i._id === lastScan.productId ? { ...i, quantity: i.quantity - 1 } : i
         )
         .filter((i) => i.quantity > 0)
     );
     setLastScan(null);
   };
 
+  const handleClearCart = () => {
+    setCart([]);
+    setLastScan(null);
+  };
+
   const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-  const confirmSale = async (payment) => {
+  const submitSale = async (method = "cash") => {
     await api.post(
       "/sales",
       {
@@ -187,7 +168,7 @@ const POS = () => {
           price: i.price,
         })),
         cashier: user._id,
-        paymentMethod: payment.paymentMethod,
+        paymentMethod: method,
       },
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -197,41 +178,38 @@ const POS = () => {
       total,
       cashier: user.name,
       date: new Date().toLocaleString(),
-      change: payment.change,
     });
 
     setCart([]);
-    setShowPayment(false);
     setShowReceipt(true);
   };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
-      <header className="bg-white px-6 py-3 flex justify-between shadow-sm sticky top-0">
+      <header className="bg-white px-6 py-3 flex justify-between shadow-sm">
         <h1 className="text-xl font-bold">POS System</h1>
 
-        {!shiftOpen ? (
-          <button onClick={startShift} className="btn-primary">
-            Start Shift
-          </button>
-        ) : (
-          <button onClick={endShift} className="btn-danger">
-            End Shift
-          </button>
-        )}
+        <div className="flex gap-2">
+          {!shiftOpen ? (
+            <button onClick={startShift} className="btn-primary">Start Shift</button>
+          ) : (
+            <button onClick={endShift} className="btn-danger">End Shift</button>
+          )}
+          <button onClick={handleLogout} className="btn-outline">Logout</button>
+        </div>
       </header>
 
       <main className="p-5 grid grid-cols-12 gap-5">
-        <aside className="col-span-3 bg-white p-4 rounded shadow">
+        <aside className="col-span-3 bg-white rounded-xl p-4 shadow">
           <Categories selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
         </aside>
 
-        <section className="col-span-6 bg-white p-4 rounded shadow">
+        <section className="col-span-6 bg-white rounded-xl p-4 shadow">
           <ProductGrid categoryId={selectedCategory} onAddToCart={handleAddToCart} />
         </section>
 
-        <aside className="col-span-3 bg-white p-4 rounded shadow">
-          <h2 className="font-bold mb-2">Cart</h2>
+        <aside className="col-span-3 bg-white rounded-xl p-4 shadow flex flex-col">
+          <h2 className="font-bold mb-3">Cart</h2>
 
           {cart.map((item) => (
             <div key={item._id} className="flex justify-between">
@@ -240,26 +218,36 @@ const POS = () => {
             </div>
           ))}
 
-          <p className="font-bold mt-4">Total ₵ {total}</p>
+          {cart.length > 0 && (
+            <>
+              <p className="font-bold mt-4">Total ₵ {total}</p>
 
-          <button onClick={undoLastScan} disabled={!lastScan} className="btn-warning mt-2">
-            Undo Last Scan
-          </button>
+              <button onClick={undoLastScan} disabled={!lastScan} className="btn-warning mt-2">
+                Undo Last Scan
+              </button>
 
-          <button
-            onClick={() => setShowPayment(true)}
-            disabled={!shiftOpen}
-            className="btn-success mt-2"
-          >
-            Complete Sale
-          </button>
+              <button
+                onClick={() => setShowPayment(true)}
+                disabled={!shiftOpen}
+                className="btn-success mt-2"
+              >
+                Complete Sale
+              </button>
+
+              <button onClick={handleClearCart} className="btn-outline mt-1">
+                Clear Cart
+              </button>
+            </>
+          )}
         </aside>
       </main>
 
       {showPayment && (
         <PaymentModal
-          total={total}
-          onConfirm={confirmSale}
+          onConfirm={(method) => {
+            setShowPayment(false);
+            submitSale(method);
+          }}
           onCancel={() => setShowPayment(false)}
         />
       )}
