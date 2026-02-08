@@ -135,7 +135,11 @@ const POS = () => {
       await api.post("/shifts/start", {}, { headers: { Authorization: `Bearer ${token}` } });
       setShiftOpen(true);
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to start shift");
+      if (err.response?.data?.message === "Shift already started") {
+        setShiftOpen(true); // auto sync UI
+      } else {
+        alert(err.response?.data?.message || "Failed to start shift");
+      }
     }
   };
 
