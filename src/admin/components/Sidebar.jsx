@@ -5,7 +5,9 @@ const Sidebar = () => {
 
   const linkClass = ({ isActive }) =>
     `block p-3 rounded transition ${
-      isActive ? "bg-gray-700 text-white" : "text-gray-300 hover:bg-gray-700"
+      isActive
+        ? "bg-gray-700 text-white"
+        : "text-gray-300 hover:bg-gray-700"
     }`;
 
   const handleLogout = () => {
@@ -41,27 +43,33 @@ const Sidebar = () => {
           Products
         </NavLink>
 
+        {/* NEW — BARCODE LABEL PRINTING */}
+        <NavLink to="/admin/print-barcodes" className={linkClass}>
+          Print Barcodes
+        </NavLink>
+
         <NavLink to="/admin/sales" className={linkClass}>
           Sales
         </NavLink>
 
+        {/* NEW — SALES SUMMARY DASHBOARD */}
+        <NavLink to="/admin/sales-summary" className={linkClass}>
+          Sales Summary
+        </NavLink>
+
         <NavLink to="/admin/shift-reports" className={linkClass}>
-         Shift Reports
+          Shift Reports
         </NavLink>
 
         <NavLink to="/admin/end-of-day" className={linkClass}>
           End of Day
         </NavLink>
 
+        {/* NEW — STOCK AUDIT TRAIL */}
         <NavLink to="/admin/audit-logs" className={linkClass}>
-          Audit Logs
+          Stock Audit History
         </NavLink>
-
-
       </nav>
-
-       
-
 
       {/* POS ACCESS */}
       <button
