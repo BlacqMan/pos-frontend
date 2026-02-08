@@ -26,6 +26,7 @@ import StockAudit from "./admin/pages/StockAudit";
 import PrintBarcodes from "./admin/pages/PrintBarcodes";
 import SalesSummary from "./admin/pages/SalesSummary";
 
+
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(

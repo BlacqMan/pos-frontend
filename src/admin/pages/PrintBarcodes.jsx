@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import BarcodeLabel from "../../components/BarcodeLabel";
+import BarcodeLabel from "../components/BarcodeLabel";
 
 const PrintBarcodes = () => {
   const { state } = useLocation();
