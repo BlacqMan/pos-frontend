@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import Categories from "../components/Categories";
 import ProductGrid from "../components/ProductGrid";
-import Receipt from "../components/Receipt";
+import Receipt from "./Receipt";
 import PaymentModal from "../components/PaymentModal";
 import api from "../api/axios";
 
