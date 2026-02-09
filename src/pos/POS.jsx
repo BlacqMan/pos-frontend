@@ -3,6 +3,7 @@ import { Navigate } from "react-router-dom";
 import Categories from "../components/Categories";
 import ProductGrid from "../components/ProductGrid";
 import Receipt from "../components/Receipt";
+import PaymentModal from "../components/PaymentModal";
 import api from "../api/axios";
 
 const POS = () => {
@@ -18,8 +19,6 @@ const POS = () => {
 
   /* PAYMENT */
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [amountReceived, setAmountReceived] = useState("");
 
   /* RECEIPT */
   const [showReceipt, setShowReceipt] = useState(false);
@@ -30,7 +29,6 @@ const POS = () => {
   const [barcode, setBarcode] = useState("");
 
   const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const change = amountReceived ? amountReceived - total : 0;
 
   useEffect(() => {
     barcodeRef.current?.focus();
@@ -84,7 +82,7 @@ const POS = () => {
   };
 
   /* SALE */
-  const submitSale = async () => {
+  const submitSale = async ({ paymentMethod, amountReceived, change }) => {
     if (!shiftOpen) return alert("Start shift first");
     if (cart.length === 0) return;
 
@@ -111,7 +109,6 @@ const POS = () => {
     });
 
     setCart([]);
-    setAmountReceived("");
     setShowReceipt(true);
   };
 
@@ -181,43 +178,15 @@ const POS = () => {
         </aside>
       </main>
 
-      {/* PAYMENT MODAL */}
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl w-80">
-            <h2 className="font-bold mb-4">Payment</h2>
-
-            <select
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value)}
-              className="w-full border p-2 rounded mb-3"
-            >
-              <option value="cash">Cash</option>
-              <option value="momo">Mobile Money</option>
-              <option value="card">Card</option>
-            </select>
-
-            <input
-              type="number"
-              placeholder="Amount received"
-              value={amountReceived}
-              onChange={(e) => setAmountReceived(Number(e.target.value))}
-              className="w-full border p-2 rounded mb-3"
-            />
-
-            <p className="mb-3">Change: ₵ {change}</p>
-
-            <button
-              className="bg-green-600 text-white w-full h-10 rounded"
-              onClick={() => {
-                setShowPaymentModal(false);
-                submitSale();
-              }}
-            >
-              Confirm Payment
-            </button>
-          </div>
-        </div>
+        <PaymentModal
+          total={total}
+          onConfirm={(data) => {
+            setShowPaymentModal(false);
+            submitSale(data);
+          }}
+          onCancel={() => setShowPaymentModal(false)}
+        />
       )}
 
       {showReceipt && receiptData && (
