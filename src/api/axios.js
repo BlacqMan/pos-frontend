@@ -1,20 +1,21 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL:
-    import.meta.env.VITE_API_BASE_URL ||
-    "http://localhost:5000/api",
-  withCredentials: true,
+  baseURL: import.meta.env.VITE_API_BASE_URL,
 });
 
 api.interceptors.response.use(
-  (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.clear();
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 401 &&
+      !window.location.pathname.includes("login")
+    ) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
       window.location.href = "/login";
     }
-    return Promise.reject(err);
+    return Promise.reject(error);
   }
 );
 
