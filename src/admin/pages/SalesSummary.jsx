@@ -9,7 +9,10 @@ const SalesSummary = () => {
     const load = async () => {
       try {
         const data = await getEndOfDaySummary();
-        setSummary(data);
+        setSummary(data || {});
+      } catch (err) {
+        console.error("Summary load error:", err);
+        setSummary({});
       } finally {
         setLoading(false);
       }
@@ -24,13 +27,19 @@ const SalesSummary = () => {
     );
   }
 
-  if (!summary) {
+  if (!summary || Object.keys(summary).length === 0) {
     return (
       <div className="p-6 text-red-400">
         Failed to load sales summary
       </div>
     );
   }
+
+  // SAFE DEFAULTS
+  const totalSales = summary.totalSales || 0;
+  const totalTransactions = summary.totalTransactions || 0;
+  const itemsSold = summary.itemsSold || 0;
+  const cashiers = summary.cashiers || [];
 
   return (
     <div className="p-6 text-white">
@@ -43,28 +52,28 @@ const SalesSummary = () => {
         <div className="bg-gray-800 p-4 rounded-lg">
           <p className="text-sm text-gray-400">Total Sales</p>
           <p className="text-2xl font-bold">
-            ₵ {summary.totalSales}
+            ₵ {totalSales}
           </p>
         </div>
 
         <div className="bg-gray-800 p-4 rounded-lg">
           <p className="text-sm text-gray-400">Transactions</p>
           <p className="text-2xl font-bold">
-            {summary.totalTransactions}
+            {totalTransactions}
           </p>
         </div>
 
         <div className="bg-gray-800 p-4 rounded-lg">
           <p className="text-sm text-gray-400">Items Sold</p>
           <p className="text-2xl font-bold">
-            {summary.itemsSold}
+            {itemsSold}
           </p>
         </div>
 
         <div className="bg-gray-800 p-4 rounded-lg">
           <p className="text-sm text-gray-400">Active Cashiers</p>
           <p className="text-2xl font-bold">
-            {summary.cashiers.length}
+            {cashiers.length}
           </p>
         </div>
       </div>
@@ -80,7 +89,7 @@ const SalesSummary = () => {
             </tr>
           </thead>
           <tbody>
-            {summary.cashiers.map((c) => (
+            {cashiers.map((c) => (
               <tr key={c.cashierId} className="border-t border-gray-700">
                 <td className="p-3">{c.name}</td>
                 <td className="p-3">{c.salesCount}</td>
@@ -91,6 +100,12 @@ const SalesSummary = () => {
             ))}
           </tbody>
         </table>
+
+        {cashiers.length === 0 && (
+          <div className="p-4 text-gray-400">
+            No sales recorded today
+          </div>
+        )}
       </div>
     </div>
   );

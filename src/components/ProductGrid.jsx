@@ -30,9 +30,6 @@ const ProductGrid = ({ categoryId, onAddToCart }) => {
     fetchProducts();
   }, [categoryId]);
 
-  /* ===============================
-     LOADING STATE (SKELETONS)
-  =============================== */
   if (loading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -46,9 +43,6 @@ const ProductGrid = ({ categoryId, onAddToCart }) => {
     );
   }
 
-  /* ===============================
-     EMPTY STATE
-  =============================== */
   if (!products || products.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-slate-400">
@@ -57,14 +51,13 @@ const ProductGrid = ({ categoryId, onAddToCart }) => {
     );
   }
 
-  /* ===============================
-     PRODUCT GRID
-  =============================== */
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       {products.map((product) => {
         const outOfStock = product.quantity <= 0;
-        const lowStock = product.quantity > 0 && product.quantity <= 5;
+        const lowStock =
+          product.quantity > 0 &&
+          product.quantity <= (product.lowStockThreshold || 5);
 
         return (
           <button
@@ -79,20 +72,19 @@ const ProductGrid = ({ categoryId, onAddToCart }) => {
               }`}
           >
             {/* STOCK BADGE */}
-            <div className="absolute top-2 right-2">
+            <div className="absolute top-2 right-2 space-x-1">
               {outOfStock && (
                 <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-600 font-medium">
-                  Out
+                  OUT
                 </span>
               )}
-              {lowStock && (
+              {lowStock && !outOfStock && (
                 <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-600 font-medium">
-                  Low
+                  LOW
                 </span>
               )}
             </div>
 
-            {/* PRODUCT INFO */}
             <div className="space-y-1">
               <h3 className="font-semibold text-slate-800 leading-tight">
                 {product.name}
@@ -103,7 +95,6 @@ const ProductGrid = ({ categoryId, onAddToCart }) => {
               </p>
             </div>
 
-            {/* FOOTER */}
             <div className="mt-4 flex items-center justify-between">
               <span className="text-xs text-slate-400">
                 Stock: {product.quantity}

@@ -16,10 +16,15 @@ const POS = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [cart, setCart] = useState([]);
   const [shiftOpen, setShiftOpen] = useState(false);
+
   const [showPaymentModel, setShowPaymentModel] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
-  const [lastScanId, setLastScanId] = useState(null);
+
+  const [showReconcileModal, setShowReconcileModal] = useState(false);
+  const [countedCash, setCountedCash] = useState("");
+  const [countedMoMo, setCountedMoMo] = useState("");
+  const [countedCard, setCountedCard] = useState("");
 
   const barcodeRef = useRef(null);
   const [barcode, setBarcode] = useState("");
@@ -28,10 +33,16 @@ const POS = () => {
 
   useEffect(() => {
     barcodeRef.current?.focus();
+
     const checkShift = async () => {
-      const res = await api.get("/shifts/active");
-      if (res.data.active) setShiftOpen(true);
+      try {
+        const res = await api.get("/shifts/active");
+        if (res.data.active) setShiftOpen(true);
+      } catch (err) {
+        console.error("Shift check failed", err);
+      }
     };
+
     checkShift();
   }, []);
 
@@ -40,23 +51,44 @@ const POS = () => {
   /* ================= SHIFT ================= */
 
   const startShift = async () => {
-    await api.post("/shifts/start");
-    setShiftOpen(true);
+    try {
+      await api.post("/shifts/start");
+      setShiftOpen(true);
+    } catch {
+      alert("Failed to start shift");
+    }
   };
 
-  const endShift = async () => {
-    await api.post("/shifts/end");
-    setShiftOpen(false);
+  const openReconciliation = () => {
+    setShowReconcileModal(true);
+  };
+
+  const confirmEndShift = async () => {
+    try {
+      await api.post("/shifts/end", {
+        countedCash: Number(countedCash) || 0,
+        countedMoMo: Number(countedMoMo) || 0,
+        countedCard: Number(countedCard) || 0,
+      });
+
+      setShiftOpen(false);
+      setShowReconcileModal(false);
+      setCountedCash("");
+      setCountedMoMo("");
+      setCountedCard("");
+      //alert("Shift closed successfully");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to close shift");
+    }
   };
 
   const handleLogout = () => {
     if (shiftOpen) {
       const confirmLogout = window.confirm(
-        "Shift is still open. Are you sure you want to logout?"
+        "Shift is still open. Logout anyway?"
       );
       if (!confirmLogout) return;
     }
-
     localStorage.clear();
     navigate("/login");
   };
@@ -77,24 +109,39 @@ const POS = () => {
   /* ================= CART ================= */
 
   const handleAddToCart = (product) => {
-    setLastScanId(product._id);
+    if (product.quantity <= 0) {
+      alert("Product is out of stock");
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((i) => i._id === product._id);
+
       if (existing) {
+        if (existing.quantity >= product.quantity) {
+          alert("No more stock available");
+          return prev;
+        }
+
         return prev.map((i) =>
           i._id === product._id
             ? { ...i, quantity: i.quantity + 1 }
             : i
         );
       }
+
       return [...prev, { ...product, quantity: 1 }];
     });
   };
 
-  const increaseQty = (id) => {
+  const increaseQty = (item) => {
+    if (item.quantity >= item.quantity) return;
+
     setCart((prev) =>
       prev.map((i) =>
-        i._id === id ? { ...i, quantity: i.quantity + 1 } : i
+        i._id === item._id
+          ? { ...i, quantity: i.quantity + 1 }
+          : i
       )
     );
   };
@@ -113,11 +160,6 @@ const POS = () => {
     setCart((prev) => prev.filter((i) => i._id !== id));
   };
 
-  const undoLastScan = () => {
-    if (!lastScanId) return;
-    decreaseQty(lastScanId);
-  };
-
   const clearCart = () => {
     setCart([]);
   };
@@ -128,30 +170,37 @@ const POS = () => {
     if (!shiftOpen) return alert("Start shift first");
     if (cart.length === 0) return;
 
-    await api.post("/sales", {
-      products: cart.map((i) => ({
-        product: i._id,
-        quantity: i.quantity,
-        price: i.price,
-      })),
-      cashier: user._id,
-      paymentMethod,
-      amountPaid: amountReceived,
-      change,
-    });
+    try {
+      const response = await api.post("/sales", {
+        products: cart.map((i) => ({
+          product: i._id,
+          quantity: i.quantity,
+          price: i.price,
+        })),
+        cashier: user._id,
+        paymentMethod,
+        amountPaid: amountReceived,
+        change,
+      });
 
-    setReceiptData({
-      items: cart,
-      total,
-      amountPaid: amountReceived,
-      change,
-      cashier: user.name,
-      date: new Date().toLocaleString(),
-      method: paymentMethod,
-    });
+      const sale = response.data;
 
-    setCart([]);
-    setShowReceipt(true);
+      setReceiptData({
+        invoiceNumber: sale.invoiceNumber,
+        items: cart,
+        total,
+        amountPaid: amountReceived,
+        change,
+        cashier: user.name,
+        date: new Date().toLocaleString(),
+        method: paymentMethod,
+      });
+
+      setCart([]);
+      setShowReceipt(true);
+    } catch (err) {
+      alert(err.response?.data?.message || "Sale failed");
+    }
   };
 
   /* ================= UI ================= */
@@ -159,8 +208,7 @@ const POS = () => {
   return (
     <div className="min-h-screen bg-gray-100">
 
-      {/* HEADER */}
-      <header className="bg-white px-6 py-3 flex justify-between items-center shadow">
+      <header className="bg-white px-6 py-3 flex justify-between shadow">
         <div>
           <h1 className="text-xl font-bold">POS System</h1>
           <p className="text-xs text-gray-500">
@@ -168,7 +216,7 @@ const POS = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex gap-3">
           {!shiftOpen ? (
             <button
               onClick={startShift}
@@ -178,7 +226,7 @@ const POS = () => {
             </button>
           ) : (
             <button
-              onClick={endShift}
+              onClick={openReconciliation}
               className="bg-red-600 text-white px-4 py-2 rounded"
             >
               End Shift
@@ -194,7 +242,6 @@ const POS = () => {
         </div>
       </header>
 
-      {/* MAIN GRID */}
       <main className="p-6 grid grid-cols-12 gap-6">
 
         <aside className="col-span-3 bg-white rounded-xl p-4 shadow">
@@ -213,6 +260,7 @@ const POS = () => {
             placeholder="Scan barcode..."
             className="w-full border p-2 rounded mb-4"
           />
+
           <ProductGrid
             categoryId={selectedCategory}
             onAddToCart={handleAddToCart}
@@ -220,27 +268,24 @@ const POS = () => {
         </section>
 
         <aside className="col-span-3 bg-white rounded-xl p-4 shadow flex flex-col">
-          <h2 className="font-bold mb-4 text-lg">Cart</h2>
+          <h2 className="font-bold mb-4">Cart</h2>
 
-          <div className="flex-1 space-y-4 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto space-y-3">
             {cart.map((item) => (
-              <div
-                key={item._id}
-                className="flex justify-between items-center"
-              >
+              <div key={item._id} className="flex justify-between items-center">
                 <div>
-                  <p className="font-medium">{item.name}</p>
+                  <p>{item.name}</p>
                   <p className="text-sm text-gray-500">
                     ₵ {item.price} × {item.quantity}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2">
                   <button onClick={() => decreaseQty(item._id)}>−</button>
-                  <button onClick={() => increaseQty(item._id)}>+</button>
+                  <button onClick={() => increaseQty(item)}>+</button>
                   <button
                     onClick={() => removeItem(item._id)}
-                    className="text-red-500 font-bold"
+                    className="text-red-500"
                   >
                     ×
                   </button>
@@ -256,16 +301,9 @@ const POS = () => {
               </div>
 
               <button
-                onClick={undoLastScan}
-                className="mt-3 w-full border rounded py-2"
-              >
-                Undo Last Scan
-              </button>
-
-              <button
-                disabled={!shiftOpen}
                 onClick={() => setShowPaymentModel(true)}
-                className="mt-2 w-full bg-black text-white py-2 rounded"
+                disabled={!shiftOpen}
+                className="mt-3 w-full bg-black text-white py-2 rounded"
               >
                 Complete Sale
               </button>
@@ -297,6 +335,54 @@ const POS = () => {
           data={receiptData}
           onClose={() => setShowReceipt(false)}
         />
+      )}
+
+      {showReconcileModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-96">
+            <h2 className="font-bold mb-4">Shift Reconciliation</h2>
+
+            <input
+              type="number"
+              placeholder="Cash Counted"
+              className="w-full border p-2 rounded mb-3"
+              value={countedCash}
+              onChange={(e) => setCountedCash(e.target.value)}
+            />
+
+            <input
+              type="number"
+              placeholder="MoMo Total"
+              className="w-full border p-2 rounded mb-3"
+              value={countedMoMo}
+              onChange={(e) => setCountedMoMo(e.target.value)}
+            />
+
+            <input
+              type="number"
+              placeholder="Card Total"
+              className="w-full border p-2 rounded mb-4"
+              value={countedCard}
+              onChange={(e) => setCountedCard(e.target.value)}
+            />
+
+            <div className="flex gap-2">
+              <button
+                onClick={confirmEndShift}
+                className="flex-1 bg-green-600 text-white p-2 rounded"
+              >
+                Close Shift
+              </button>
+
+              <button
+                onClick={() => setShowReconcileModal(false)}
+                className="flex-1 bg-gray-500 text-white p-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
