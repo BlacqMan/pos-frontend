@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const PaymentModal = ({ total, onConfirm, onCancel }) => {
+const PaymentModel = ({ total, onConfirm, onCancel }) => {
   const [method, setMethod] = useState("cash");
   const [received, setReceived] = useState("");
 
@@ -74,4 +74,4 @@ const PaymentModal = ({ total, onConfirm, onCancel }) => {
   );
 };
 
-export default PaymentModal;
+export default PaymentModel;
